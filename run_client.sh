@@ -1,0 +1,1 @@
+clear && gcc -o client client.c && ./client $1

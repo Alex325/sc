@@ -1,0 +1,1 @@
+clear && gcc -o server server.c && ./server $1
