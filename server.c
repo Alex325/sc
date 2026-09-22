@@ -9,13 +9,16 @@
 
 #define POOL_SIZE 32
 
-void read_req(const int client, char request[512])
+#define REQ_SIZE 512
+#define RES_SIZE 1024
+
+int read_req(const int client, char *request)
 {
     int bytes_red = 0;
 
-    while (bytes_red < 512)
+    while (bytes_red < REQ_SIZE)
     {
-        int r = recv(client, request + bytes_red, 512 - bytes_red, 0);
+        int r = recv(client, request + bytes_red, REQ_SIZE - bytes_red, 0);
 
         if (r < 0) {
             return -1;
@@ -26,15 +29,17 @@ void read_req(const int client, char request[512])
 
         bytes_red += r;
     }
+
+    return bytes_red;
 }
 
-void send_res(const int client, char response[1024])
+int send_res(const int client, const char *response)
 {
     int bytes_sent = 0;
 
-    while (bytes_sent < 1024)
+    while (bytes_sent < RES_SIZE)
     {
-        int r = send(client, response + bytes_sent, 1024 - bytes_sent, 0);
+        int r = send(client, response + bytes_sent, RES_SIZE - bytes_sent, 0);
 
         if (r < 0) {
             return -1;
@@ -45,13 +50,15 @@ void send_res(const int client, char response[1024])
 
         bytes_sent += r;
     }
+
+    return bytes_sent;
 }
 
 void serve(const unsigned long thrd, const int client) {
 
     printf("Atendendo cliente %d na thread %d\n", client, thrd);
 
-    char request[512] = {0}, response[1024] = {0};
+    char request[REQ_SIZE] = {0}, response[RES_SIZE] = {0};
 
     int should_quit = 0;
 
@@ -62,22 +69,45 @@ void serve(const unsigned long thrd, const int client) {
 
         printf("Cliente %d mandou: %s\n", client, request);
 
-        if (strncmp(request, "QUIT", 4))
+        if (strcmp(request, "quit") == 0)
         {
             should_quit = 1;
+            response[0] = 0x0;
+            sprintf(response + 1,
+                    "quitting...");
         }
-        
-        sprintf(response,
-                "Atendido por thread: %lu\n"
-                "Mensagem: %s",
-                thrd,
-                request);
+        else if (strncmp(request, "echo", 4) == 0) {
+            if (request[4] == 0)
+            {
+                response[0] = 0x2;
+
+                sprintf(response + 1,
+                        "error: uso: echo (espaço) [mensagem (len >= 0)]");
+            }
+            else if (request[4] == ' ') {
+                response[0] = 0x1;
+                sprintf(response + 1,
+                        "ECHO: %s",
+                        request + 5);
+            }
+            else {
+                goto unsupported;
+            }
+        }
+        else {
+        unsupported:
+            response[0] = 0xff;
+            sprintf(response + 1,
+                    "NOT SUPPORTED");            
+        }
 
         send_res(client, response);
 
-        memset(request, 0, 512);
-        memset(response, 0, 1024);
+        memset(request, 0, REQ_SIZE);
+        memset(response, 0, RES_SIZE);
     }
+
+    printf("Cliente %d desconectado\n", client);
 
     close(client);
 }
@@ -149,14 +179,18 @@ void init_pool() {
 
 int main(int argc, char **argv) {
 
+    if (!argv[1])
+    {
+        puts("uso: ./server porta");
+        return 1;
+    }
+    
     init_pool();
 
     int socket_fd, client;
 
-    const uint16_t port = (unsigned short)atoi(argv[1]);
+    const uint16_t port = htons((uint16_t)atoi(argv[1]));
     
-    printf("%hu\n", port);
-
     struct sockaddr_in address = {
         .sin_family = AF_INET,
         .sin_addr = INADDR_ANY,
@@ -182,7 +216,7 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    printf("Server listening on %d\n", port);
+    printf("Server listening on %d\n", ntohs(port));
     
     while (1)
     {
