@@ -12,6 +12,15 @@
 #define REQ_SIZE 512
 #define RES_SIZE 1024
 
+#define DEBUG(str, ...) do { \
+    char timestr[16] = {0}; \
+    const time_t t = time(NULL);\
+    const struct tm *info = localtime(&t); \
+    strftime(timestr, sizeof(timestr), "[%H:%M:%S] ", info);  \
+    printf(timestr); \
+    printf(str, __VA_ARGS__); \
+} while (0)
+
 int read_req(const int client, char *request)
 {
     int bytes_red = 0;
@@ -37,6 +46,8 @@ int send_res(const int client, const char *response)
 {
     int bytes_sent = 0;
 
+    puts("aqui 2");
+
     while (bytes_sent < RES_SIZE)
     {
         int r = send(client, response + bytes_sent, RES_SIZE - bytes_sent, 0);
@@ -56,7 +67,7 @@ int send_res(const int client, const char *response)
 
 void serve(const unsigned long thrd, const int client) {
 
-    printf("Atendendo cliente %d na thread %d\n", client, thrd);
+    DEBUG("Atendendo cliente %d na thread %d\n", client, thrd);
 
     char request[REQ_SIZE] = {0}, response[RES_SIZE] = {0};
 
@@ -65,9 +76,15 @@ void serve(const unsigned long thrd, const int client) {
     while (!should_quit)
     {
 
-        read_req(client, request);
+        int received = read_req(client, request);
 
-        printf("Cliente %d mandou: %s\n", client, request);
+        if (received <= 0)
+        {
+            should_quit = 1;
+            goto cleanup;
+        }
+
+        DEBUG("Cliente %d mandou: %s\n", client, request);
 
         if (strcmp(request, "quit") == 0)
         {
@@ -103,11 +120,12 @@ void serve(const unsigned long thrd, const int client) {
 
         send_res(client, response);
 
+    cleanup:
         memset(request, 0, REQ_SIZE);
         memset(response, 0, RES_SIZE);
     }
 
-    printf("Cliente %d desconectado\n", client);
+    DEBUG("Cliente %d desconectado\n", client);
 
     close(client);
 }
@@ -216,17 +234,17 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    printf("Server listening on %d\n", ntohs(port));
+    DEBUG("Server listening on %d\n", ntohs(port));
     
     while (1)
     {
         client = accept(socket_fd, (struct sockaddr*) &address, &len);
         if (client == -1) continue;
-        printf("Cliente %d conectado\n", client);
+        DEBUG("Cliente %d conectado\n", client);
         
         pthread_mutex_lock(&pool.lock);
         while (pool.waiting_now >= 8) {
-            printf("Cliente %d em espera\n", client);
+            DEBUG("Cliente %d em espera\n", client);
             pthread_cond_wait(&pool.tem_espaco, &pool.lock);
         }
         pool.waiting_clients[(pool.inicio + pool.waiting_now) % 8] = client;
