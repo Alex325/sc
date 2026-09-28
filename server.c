@@ -5,7 +5,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
-#include <atomic_ops.h>
 
 #define POOL_SIZE 32
 
