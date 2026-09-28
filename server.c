@@ -45,8 +45,6 @@ int send_res(const int client, const char *response)
 {
     int bytes_sent = 0;
 
-    puts("aqui 2");
-
     while (bytes_sent < RES_SIZE)
     {
         int r = send(client, response + bytes_sent, RES_SIZE - bytes_sent, 0);
@@ -239,6 +237,8 @@ int main(int argc, char **argv) {
     {
         client = accept(socket_fd, (struct sockaddr*) &address, &len);
         if (client == -1) continue;
+        const int optval = 1;
+        setsockopt(client, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval));
         DEBUG("Cliente %d conectado\n", client);
         
         pthread_mutex_lock(&pool.lock);
